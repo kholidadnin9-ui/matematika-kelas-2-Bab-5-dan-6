@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal Game Matematika - Kelas 2 SD</title>
+    <!-- Tailwind CSS untuk Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons untuk Ikon -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Animasi Kustom */
+        @keyframes pop {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-pop {
+            animation: pop 0.5s ease-out forwards;
+        }
+        @keyframes fall {
+            0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(110vh) rotate(360deg); opacity: 0; }
+        }
+        .confetti-piece {
+            position: absolute;
+            top: -20px;
+            z-index: 10;
+            width: 12px;
+            height: 12px;
+            animation: fall linear forwards;
+        }
+        /* Background Khusus */
+        .jungle-bg {
+            background-color: #064e3b;
+            background-image: radial-gradient(circle at center, #047857 0%, #064e3b 100%);
+        }
+        .space-bg {
+            background-color: #0f172a;
+            background-image: radial-gradient(ellipse at center, #312e81 0%, #0f172a 100%);
+        }
+        .portal-bg {
+            background-color: #171717;
+            background-image: radial-gradient(circle at top, #4c1d95 0%, #171717 100%);
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white font-sans min-h-screen selection:bg-purple-500 selection:text-white overflow-x-hidden">
+
+    <!-- Kontainer Utama Aplikasi -->
+    <div id="app" class="w-full min-h-screen"></div>
+
+    <script>
+        // --- SISTEM AUDIO (Web Audio API) ---
+        class SoundManager {
+            constructor() {
+                this.ctx = null;
+                this.initialized = false;
+            }
+
+            init() {
+                if (!this.initialized) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    this.initialized = true;
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playTone(frequency, type, duration, vol = 0.1) {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(frequency, this.ctx.currentTime);
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + duration);
+            }
+
+            click() {
+                this.init();
+                this.playTone(600, 'sine', 0.1, 0.05);
+            }
+
+            correct() {
+                this.init();
+                this.playTone(523.25, 'sine', 0.15, 0.1); 
+                setTimeout(() => this.playTone(659.25, 'sine', 0.2, 0.1), 100); 
+                setTimeout(() => this.playTone(783.99, 'sine', 0.3, 0.1), 200); 
+            }
+
+            wrong() {
+                this.init();
+                this.playTone(349.23, 'triangle', 0.2, 0.1); 
+                setTimeout(() => this.playTone(261.63, 'triangle', 0.4, 0.1), 150); 
+            }
+
+            celebrate() {
+                this.init();
+                const notes = [
+                    { f: 392.00, d: 0.15 }, { f: 392.00, d: 0.15 }, { f: 392.00, d: 0.15 },
+                    { f: 523.25, d: 0.4 }, { f: 392.00, d: 0.2 }, { f: 523.25, d: 0.6 }
+                ];
+                let time = 0;
+                notes.forEach(note => {
+                    setTimeout(() => this.playTone(note.f, 'square', note.d, 0.08), time);
+                    time += (note.d * 1000) + 50;
+                });
+            }
+        }
+
+        const sound = new SoundManager();
+
+        // --- DATA SOAL GAME 1 (MISI LUAR ANGKASA) ---
+        const spaceQuestions = [
+            { id: 1, title: "Planet Apel", question: "Ibu memotong sebuah apel menjadi 4 (empat) bagian sama besar. Setiap bagian apel tersebut disebut pecahan...", options: ["Seperempat", "Setengah", "Satu"], correctAnswer: 0, color: "from-red-400 to-red-600" },
+            { id: 2, title: "Planet Lambang", question: "Lambang bilangan untuk pecahan 'setengah' adalah...", options: ["1/2", "1/4", "2/1"], correctAnswer: 0, color: "from-blue-400 to-blue-600" },
+            { id: 3, title: "Planet Roti", question: "Roti tawar dipotong dua. Potongan pertama sangat besar, kedua kecil. Apakah bisa disebut pecahan setengah?", options: ["Ya, karena dibagi dua", "Tidak, karena tidak sama besar", "Ya, dari roti yang sama"], correctAnswer: 1, color: "from-yellow-400 to-orange-500" },
+            { id: 4, title: "Planet Pizza", question: "Ibu mempunyai satu loyang pizza utuh. Pizza itu dipotong menjadi 2 bagian sama besar. Lambang pecahan untuk satu potong pizza adalah...", options: ["1/4", "1/2", "1/3"], correctAnswer: 1, color: "from-pink-400 to-pink-600" },
+            { id: 5, title: "Planet Waktu Belajar", question: "Eyza belajar pukul 04.00-05.00 sore. Arkhan belajar pukul 04.00-06.00 sore. Siapa yang belajar dengan waktu lebih sedikit?", options: ["Eyza", "Arkhan", "Ke dua-duanya"], correctAnswer: 0, color: "from-green-400 to-green-600" },
+            { id: 6, title: "Planet Jam", question: "Jam dinding menunjukkan pukul 08.00. Satu jam kemudian jarum jam akan menunjukkan pukul...", options: ["07.00", "08.30", "09.00"], correctAnswer: 2, color: "from-purple-400 to-purple-600" },
+            { id: 7, title: "Planet Timbangan", question: "Jika berat 2 buah semangka sama dengan berat 10 buah mangga. Maka berat 1 buah semangka sama dengan berat ... buah mangga.", options: ["2", "5", "10"], correctAnswer: 1, color: "from-cyan-400 to-cyan-600" },
+            { id: 8, title: "Planet Selisih Berat", question: "Berat mainan robot = 8 kelereng. Berat mainan mobil = 5 kelereng. Berapa selisih berat kedua mainan tersebut?", options: ["13 kelereng", "3 kelereng", "2 kelereng"], correctAnswer: 1, color: "from-lime-400 to-lime-600" },
+            { id: 9, title: "Planet Pecahan Kue", question: "Potongan pizza yang hilang dari 4 bagian yang utuh (menyisakan 3 bagian) menunjukkan pecahan...", options: ["Setengah", "Seperempat", "Sepertiga"], correctAnswer: 1, color: "from-indigo-400 to-indigo-600" },
+            { id: 10, title: "Planet Kegiatan", question: "Kegiatan manakah di bawah ini yang membutuhkan waktu lebih lama?", options: ["Memakai sepatu", "Tidur malam", "Minum air"], correctAnswer: 1, color: "from-orange-400 to-red-500" }
+        ];
+
+        // --- DATA SOAL GAME 2 (PETUALANGAN BERAT BENDA) ---
+        const jungleQuestions = [
+            { id: 1, title: "Pulau Buku Cerita", question: "Berat sebuah buku cerita adalah 5 kelereng. Berat sebuah pensil adalah 2 kelereng. Maka buku cerita ... daripada pensil.", options: ["Lebih berat", "Lebih ringan", "Sama berat"], correctAnswer: 0, color: "from-emerald-500 to-teal-700" },
+            { id: 2, title: "Pulau Pensil", question: "Di atas timbangan gantungan baju, berat 1 buku tulis sama dengan 10 kelereng. Berat 1 pensil sama dengan 3 kelereng. Benda manakah yang lebih ringan?", options: ["Buku tulis", "Pensil", "Kelereng"], correctAnswer: 1, color: "from-green-400 to-green-600" },
+            { id: 3, title: "Pulau Tas Sekolah", question: "Perkirakan berat benda berikut yang ada di kelasmu! Sebuah tas sekolah yang penuh buku ... daripada sebuah penghapus papan tulis.", options: ["Lebih ringan", "Sama berat", "Lebih berat"], correctAnswer: 2, color: "from-lime-500 to-green-700" },
+            { id: 4, title: "Pulau Kotak Pensil", question: "Pada gantungan baju yang dijadikan timbangan, kantong plastik berisi kotak pensil turun ke bawah, sedangkan kantong plastik berisi rautan naik ke atas. Artinya kotak pensil ... daripada rautan.", options: ["Lebih ringan", "Lebih berat", "Sama berat"], correctAnswer: 1, color: "from-teal-400 to-emerald-600" },
+            { id: 5, title: "Pulau Tempat Pensil", question: "Berat tempat pensil milik Eyza = 8 kelereng. Berat tempat pensil milik Arkhan = 7 kelereng. Berapa jumlah berat kedua tempat pensil tersebut jika digabungkan?", options: ["15 kelereng", "10 kelereng", "1 kelereng"], correctAnswer: 0, color: "from-cyan-500 to-teal-600" },
+            { id: 6, title: "Pulau Buku Gambar", question: "Berat buku gambar = 12 kelereng. Berat buku tulis = 9 kelereng. Berapa selisih berat kedua buku tersebut?", options: ["21 kelereng", "4 kelereng", "3 kelereng"], correctAnswer: 2, color: "from-green-500 to-lime-600" },
+            { id: 7, title: "Pulau Kamus", question: "Berat 1 kamus sama dengan 15 kelereng. Berat 1 kotak krayon sama dengan 10 kelereng. Manakah benda yang paling berat?", options: ["Kamus", "Kotak krayon", "Kelereng"], correctAnswer: 0, color: "from-emerald-400 to-teal-500" },
+            { id: 8, title: "Pulau Ukur", question: "Benda apakah di bawah ini yang bisa digunakan sebagai alat ukur berat 'tidak baku' di kelas untuk menimbang benda-benda kecil?", options: ["Kelereng", "Penggaris", "Jam dinding"], correctAnswer: 0, color: "from-teal-500 to-cyan-700" },
+            { id: 9, title: "Pulau Penyeimbang", question: "Untuk membandingkan berat benda di kelas menggunakan gantungan baju, kita bisa memasukkan ... ke dalam kantong plastik sebagai penyeimbang.", options: ["Air", "Kelereng", "Udara"], correctAnswer: 1, color: "from-lime-400 to-green-600" },
+            { id: 10, title: "Pulau Bekal", question: "Jika berat kotak bekal sama dengan 20 kelereng, dan berat botol minum juga 20 kelereng. Maka berat kotak bekal ... dengan berat botol minum.", options: ["Sama berat", "Lebih berat", "Lebih ringan"], correctAnswer: 0, color: "from-green-600 to-emerald-800" }
+        ];
+
+        // --- STATE MANAJEMEN ---
+        let appState = 'menu'; // 'menu', 'space', 'jungle'
+
+        let spaceState = {
+            view: 'start', // 'start', 'home', 'question', 'result'
+            score: 0,
+            missionStatus: {}, 
+            activeQuestionId: null,
+            feedback: { show: false, isCorrect: false }
+        };
+
+        let jungleState = {
+            view: 'start',
+            score: 0,
+            missionStatus: {}, 
+            activeQuestionId: null,
+            feedback: { show: false, isCorrect: false }
+        };
+
+        // --- NAVIGASI UTAMA ---
+        window.openMenu = function() {
+            sound.click();
+            appState = 'menu';
+            render();
+        }
+
+        window.openSpaceApp = function() {
+            sound.click();
+            appState = 'space';
+            // Reset state saat membuka dari awal
+            spaceState = { view: 'start', score: 0, missionStatus: {}, activeQuestionId: null, feedback: { show: false, isCorrect: false } };
+            render();
+        }
+
+        window.openJungleApp = function() {
+            sound.click();
+            appState = 'jungle';
+            // Reset state saat membuka dari awal
+            jungleState = { view: 'start', score: 0, missionStatus: {}, activeQuestionId: null, feedback: { show: false, isCorrect: false } };
+            render();
+        }
+
+        // --- LOGIKA GAME 1: MISI LUAR ANGKASA ---
+        window.space_startGame = function() { sound.click(); spaceState.view = 'home'; render(); };
+        window.space_goHome = function() { sound.click(); spaceState.view = 'home'; render(); };
+        window.space_selectMission = function(id) {
+            sound.click();
+            if (spaceState.missionStatus[id]) return; 
+            spaceState.activeQuestionId = id;
+            spaceState.view = 'question';
+            render();
+        };
+        window.space_handleAnswer = function(selectedIndex) {
+            if (spaceState.feedback.show) return;
+            sound.click();
+            const question = spaceQuestions.find(q => q.id === spaceState.activeQuestionId);
+            const isCorrect = selectedIndex === question.correctAnswer;
+            
+            spaceState.feedback = { show: true, isCorrect: isCorrect };
+            if (isCorrect) { sound.correct(); spaceState.score += 10; } 
+            else { sound.wrong(); }
+
+            spaceState.missionStatus[question.id] = isCorrect ? 'correct' : 'wrong';
+            render(); 
+
+            setTimeout(() => {
+                spaceState.feedback = { show: false, isCorrect: false };
+                spaceState.activeQuestionId = null;
+                const totalAnswered = Object.keys(spaceState.missionStatus).length;
+                if (totalAnswered === spaceQuestions.length) {
+                    spaceState.view = 'result';
+                    sound.celebrate();
+                } else {
+                    spaceState.view = 'home';
+                }
+                render();
+            }, 2500);
+        };
+
+        // --- LOGIKA GAME 2: PETUALANGAN BERAT BENDA ---
+        window.jungle_startGame = function() { sound.click(); jungleState.view = 'home'; render(); };
+        window.jungle_goHome = function() { sound.click(); jungleState.view = 'home'; render(); };
+        window.jungle_selectMission = function(id) {
+            sound.click();
+            if (jungleState.missionStatus[id]) return; 
+            jungleState.activeQuestionId = id;
+            jungleState.view = 'question';
+            render();
+        };
+        window.jungle_handleAnswer = function(selectedIndex) {
+            if (jungleState.feedback.show) return;
+            sound.click();
+            const question = jungleQuestions.find(q => q.id === jungleState.activeQuestionId);
+            const isCorrect = selectedIndex === question.correctAnswer;
+            
+            jungleState.feedback = { show: true, isCorrect: isCorrect };
+            if (isCorrect) { sound.correct(); jungleState.score += 10; } 
+            else { sound.wrong(); }
+
+            jungleState.missionStatus[question.id] = isCorrect ? 'correct' : 'wrong';
+            render(); 
+
+            setTimeout(() => {
+                jungleState.feedback = { show: false, isCorrect: false };
+                jungleState.activeQuestionId = null;
+                const totalAnswered = Object.keys(jungleState.missionStatus).length;
+                if (totalAnswered === jungleQuestions.length) {
+                    jungleState.view = 'result';
+                    sound.celebrate();
+                } else {
+                    jungleState.view = 'home';
+                }
+                render();
+            }, 2500);
+        };
+
+        // --- RENDER PORTAL MENU UTAMA ---
+        function renderMainMenu() {
+            return `
+                <div class="min-h-screen portal-bg flex flex-col items-center justify-center p-6 relative">
+                    <!-- Ornamen background -->
+                    <div class="absolute top-10 left-10 w-32 h-32 bg-purple-500/20 rounded-full blur-3xl"></div>
+                    <div class="absolute bottom-10 right-10 w-48 h-48 bg-blue-500/20 rounded-full blur-3xl"></div>
+
+                    <div class="text-center mb-12 relative z-10">
+                        <div class="bg-white/10 p-4 rounded-full inline-block mb-4 backdrop-blur-sm border border-white/20 shadow-lg">
+                            <i data-lucide="gamepad-2" class="w-16 h-16 text-yellow-400"></i>
+                        </div>
+                        <h1 class="text-4xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-yellow-500 drop-shadow-lg mb-4">
+                            Arcade Juara!
+                        </h1>
+                        <p class="text-xl md:text-2xl text-purple-200 font-medium">Pilih Petualangan Matematikamu Hari Ini</p>
+                    </div>
+
+                    <div class="flex flex-col md:flex-row gap-8 w-full max-w-5xl relative z-10">
+                        
+                        <!-- CARD GAME 1 -->
+                        <div class="flex-1 bg-slate-800/80 backdrop-blur-md rounded-3xl p-8 border-4 border-blue-500 shadow-[0_0_30px_rgba(59,130,246,0.4)] flex flex-col items-center text-center transform transition duration-300 hover:scale-105 hover:shadow-[0_0_50px_rgba(59,130,246,0.6)]">
+                            <div class="bg-blue-500/20 p-6 rounded-full mb-6 border border-blue-400/50">
+                                <i data-lucide="rocket" class="w-20 h-20 text-blue-400 animate-bounce"></i>
+                            </div>
+                            <h2 class="text-3xl font-black text-white mb-3 drop-shadow-sm">Misi Luar Angkasa</h2>
+                            <p class="text-blue-200 mb-8 font-medium text-lg flex-grow">Belajar Pecahan & Menghitung Waktu</p>
+                            <button onclick="openSpaceApp()" class="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xl rounded-2xl shadow-lg border border-blue-400 active:scale-95 transition-all">
+                                Mainkan Game 1
+                            </button>
+                        </div>
+
+                        <!-- CARD GAME 2 -->
+                        <div class="flex-1 bg-emerald-900/80 backdrop-blur-md rounded-3xl p-8 border-4 border-yellow-400 shadow-[0_0_30px_rgba(250,204,21,0.4)] flex flex-col items-center text-center transform transition duration-300 hover:scale-105 hover:shadow-[0_0_50px_rgba(250,204,21,0.6)]">
+                            <div class="bg-yellow-500/20 p-6 rounded-full mb-6 border border-yellow-400/50">
+                                <i data-lucide="map" class="w-20 h-20 text-yellow-400 animate-bounce"></i>
+                            </div>
+                            <h2 class="text-3xl font-black text-white mb-3 drop-shadow-sm">Petualangan Hutan</h2>
+                            <p class="text-emerald-200 mb-8 font-medium text-lg flex-grow">Menimbang & Satuan Berat Tidak Baku</p>
+                            <button onclick="openJungleApp()" class="w-full py-4 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-emerald-900 font-black text-xl rounded-2xl shadow-lg border border-yellow-200 active:scale-95 transition-all">
+                                Mainkan Game 2
+                            </button>
+                        </div>
+
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- RENDER GAME 1 (MISI LUAR ANGKASA) ---
+        function renderSpaceApp() {
+            if (spaceState.view === 'start') {
+                return `
+                    <div class="min-h-screen space-bg flex items-center justify-center p-4 relative">
+                        <button onclick="openMenu()" class="absolute top-6 left-6 flex items-center bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl backdrop-blur-sm transition font-bold border border-white/20 z-10">
+                            <i data-lucide="home" class="w-5 h-5 mr-2"></i> Ke Beranda
+                        </button>
+                        <div class="text-center space-y-8 bg-slate-800/90 p-10 rounded-3xl border border-slate-700 shadow-[0_0_40px_rgba(0,0,0,0.5)] max-w-lg w-full backdrop-blur-sm">
+                            <i data-lucide="rocket" class="w-24 h-24 text-blue-500 mx-auto animate-bounce"></i>
+                            <h1 class="text-4xl font-black text-white">Misi Luar Angkasa</h1>
+                            <p class="text-blue-200">Siapkah kamu menjadi Generasi Anshorullah yang Hebat? Mari mulai petualangan matematika ini!</p>
+                            <button onclick="space_startGame()" class="w-full py-4 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold text-xl rounded-full shadow-lg transform transition hover:scale-105 active:scale-95 border border-blue-400/50">
+                                Mulai Misi!
+                            </button>
+                        </div>
+                    </div>
+                `;
+            } else if (spaceState.view === 'home') {
+                let gridHTML = '';
+                spaceQuestions.forEach(q => {
+                    const status = spaceState.missionStatus[q.id];
+                    const isLocked = status !== undefined;
+                    let btnClasses = isLocked ? 'opacity-60 scale-95 cursor-not-allowed ' : 'hover:scale-105 hover:shadow-2xl hover:shadow-blue-500/50 cursor-pointer ';
+                    let borderClass = status === 'correct' ? 'border-yellow-400' : status === 'wrong' ? 'border-slate-500' : 'border-white/20';
+                    let iconHTML = status === 'correct' 
+                        ? `<i data-lucide="star" class="w-14 h-14 md:w-16 md:h-16 text-yellow-300 fill-current drop-shadow-[0_0_15px_rgba(253,224,71,0.8)]"></i>`
+                        : status === 'wrong' 
+                            ? `<i data-lucide="heart" class="w-14 h-14 md:w-16 md:h-16 text-slate-300 fill-current opacity-50"></i>`
+                            : `<i data-lucide="moon" class="w-14 h-14 md:w-16 md:h-16 text-white/90 drop-shadow-md"></i>`;
+
+                    gridHTML += `
+                        <button onclick="space_selectMission(${q.id})" ${isLocked ? 'disabled' : ''} class="relative aspect-square rounded-3xl p-4 flex flex-col items-center justify-center transition-all duration-300 bg-gradient-to-br ${q.color} border-4 ${borderClass} ${btnClasses} shadow-lg">
+                            <div class="absolute top-2 right-2 text-white/50 font-black text-xl">${q.id}</div>
+                            ${iconHTML}
+                            <span class="mt-3 font-bold text-white text-xs md:text-sm text-center bg-black/40 px-3 py-1.5 rounded-full w-full truncate border border-white/10">${q.title}</span>
+                        </button>
+                    `;
+                });
+
+                return `
+                    <div class="min-h-screen space-bg p-4 md:p-8 font-sans">
+                        <div class="max-w-4xl mx-auto">
+                            <div class="flex flex-col md:flex-row justify-between items-center mb-10 bg-white/10 p-6 rounded-3xl backdrop-blur-md border border-white/20 shadow-xl relative">
+                                <button onclick="openMenu()" class="absolute -top-4 -left-4 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white w-10 h-10 rounded-full shadow-lg border-2 border-white transition transform hover:scale-110" title="Keluar Game">
+                                    <i data-lucide="x" class="w-5 h-5"></i>
+                                </button>
+                                <div class="flex items-center space-x-4 mb-4 md:mb-0 ml-4">
+                                    <div class="bg-blue-500 p-3 rounded-2xl shadow-lg shadow-blue-500/50">
+                                        <i data-lucide="rocket" class="w-8 h-8 text-white"></i>
+                                    </div>
+                                    <div>
+                                        <h1 class="text-2xl md:text-3xl font-extrabold tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-white">Peta Kosmik</h1>
+                                        <p class="text-blue-300 text-sm font-medium">Selesaikan 10 Misi Planet!</p>
+                                    </div>
+                                </div>
+                                <div class="text-center">
+                                    <p class="text-blue-200 text-xs font-bold uppercase tracking-wider mb-1">Skor Bintang</p>
+                                    <div class="flex items-center space-x-2 bg-yellow-500/20 px-4 py-2 rounded-xl border border-yellow-500/30">
+                                        <i data-lucide="star" class="w-6 h-6 text-yellow-400 fill-current animate-pulse"></i>
+                                        <span class="text-2xl font-black text-yellow-400">${spaceState.score}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 md:gap-6">${gridHTML}</div>
+                        </div>
+                    </div>
+                `;
+            } else if (spaceState.view === 'question') {
+                const q = spaceQuestions.find(question => question.id === spaceState.activeQuestionId);
+                let optionsHTML = '';
+                q.options.forEach((opt, idx) => {
+                    optionsHTML += `<button onclick="space_handleAnswer(${idx})" ${spaceState.feedback.show ? 'disabled' : ''} class="w-full p-5 rounded-2xl border-2 border-slate-600 bg-slate-700 hover:bg-slate-600 text-left text-lg font-semibold text-white transition-all duration-200 transform hover:-translate-y-1 hover:shadow-lg active:scale-95 flex items-center"><span class="mr-3 text-slate-400">${String.fromCharCode(65 + idx)}.</span>${opt}</button>`;
+                });
+
+                let feedbackHTML = '';
+                if (spaceState.feedback.show) {
+                    const isCorrect = spaceState.feedback.isCorrect;
+                    feedbackHTML = `
+                        <div class="absolute inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md transition-all duration-500 ${isCorrect ? 'bg-green-900/80' : 'bg-orange-900/80'}">
+                            <div class="transform transition-all duration-500 scale-110 text-center p-8 rounded-3xl border-4 shadow-2xl ${isCorrect ? 'bg-green-800 border-green-400 shadow-green-500/50' : 'bg-orange-800 border-orange-400 shadow-orange-500/50'}">
+                                ${isCorrect ? `<i data-lucide="check-circle" class="w-24 h-24 text-green-300 mx-auto mb-6 animate-bounce"></i>` : `<i data-lucide="heart" class="w-24 h-24 text-orange-300 mx-auto mb-6 animate-pulse fill-current"></i>`}
+                                <h2 class="text-3xl md:text-5xl font-black text-white tracking-wide mb-2 drop-shadow-lg">${isCorrect ? "BARAKALLAH!" : "SEMANGAT!"}</h2>
+                                <p class="text-xl md:text-2xl font-bold text-white/90">${isCorrect ? "Siswa Kelas 2 Juara!" : "Siswa Para Juara!"}</p>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                return `
+                    <div class="min-h-screen space-bg flex items-center justify-center p-4 relative overflow-hidden">
+                        ${feedbackHTML}
+                        <div class="max-w-2xl w-full bg-slate-800 rounded-3xl p-6 md:p-10 border border-slate-700 shadow-2xl relative">
+                            <button onclick="space_goHome()" class="flex items-center text-slate-400 hover:text-white mb-8 transition-colors"><i data-lucide="arrow-left" class="w-5 h-5 mr-2"></i> Kembali ke Peta</button>
+                            <div class="mb-10">
+                                <span class="inline-block px-5 py-1.5 rounded-full text-sm font-bold mb-4 bg-gradient-to-r ${q.color} text-white shadow-md">Misi: ${q.title}</span>
+                                <h2 class="text-2xl md:text-3xl font-bold text-white leading-relaxed">${q.question}</h2>
+                            </div>
+                            <div class="space-y-4">${optionsHTML}</div>
+                        </div>
+                    </div>
+                `;
+            } else if (spaceState.view === 'result') {
+                return renderCertificate('Misi Luar Angkasa', spaceState.score, 'star', 'text-amber-500', 'bg-blue-600 hover:bg-blue-500', 'openSpaceApp()');
+            }
+        }
+
+        // --- RENDER GAME 2 (PETUALANGAN BERAT BENDA) ---
+        function renderJungleApp() {
+            if (jungleState.view === 'start') {
+                return `
+                    <div class="min-h-screen jungle-bg flex items-center justify-center p-4 relative">
+                        <button onclick="openMenu()" class="absolute top-6 left-6 flex items-center bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl backdrop-blur-sm transition font-bold border border-white/20 z-10">
+                            <i data-lucide="home" class="w-5 h-5 mr-2"></i> Ke Beranda
+                        </button>
+                        <div class="text-center space-y-8 bg-emerald-900/80 p-10 rounded-3xl border-4 border-emerald-600 shadow-[0_0_40px_rgba(0,0,0,0.5)] max-w-lg w-full backdrop-blur-sm">
+                            <i data-lucide="map" class="w-24 h-24 text-yellow-400 mx-auto animate-bounce"></i>
+                            <h1 class="text-4xl font-black text-white drop-shadow-md">Petualangan Harta Karun</h1>
+                            <p class="text-emerald-100 text-lg">Mari belajar menimbang benda dan temukan semua permata tersembunyi!</p>
+                            <button onclick="jungle_startGame()" class="w-full py-4 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-emerald-900 font-black text-xl rounded-full shadow-lg transform transition hover:scale-105 active:scale-95 border-2 border-yellow-200">
+                                Mulai Berpetualang!
+                            </button>
+                        </div>
+                    </div>
+                `;
+            } else if (jungleState.view === 'home') {
+                let gridHTML = '';
+                jungleQuestions.forEach(q => {
+                    const status = jungleState.missionStatus[q.id];
+                    const isLocked = status !== undefined;
+                    let btnClasses = isLocked ? 'opacity-70 scale-95 cursor-not-allowed ' : 'hover:scale-105 hover:shadow-2xl hover:shadow-emerald-500/50 cursor-pointer ';
+                    let borderClass = status === 'correct' ? 'border-yellow-400' : status === 'wrong' ? 'border-slate-500' : 'border-emerald-200/30';
+                    let iconHTML = status === 'correct' 
+                        ? `<i data-lucide="gem" class="w-14 h-14 md:w-16 md:h-16 text-yellow-300 fill-current drop-shadow-[0_0_15px_rgba(253,224,71,0.8)]"></i>`
+                        : status === 'wrong' 
+                            ? `<i data-lucide="x-circle" class="w-14 h-14 md:w-16 md:h-16 text-slate-300 opacity-60"></i>`
+                            : `<i data-lucide="map-pin" class="w-14 h-14 md:w-16 md:h-16 text-emerald-100 drop-shadow-md"></i>`;
+
+                    gridHTML += `
+                        <button onclick="jungle_selectMission(${q.id})" ${isLocked ? 'disabled' : ''} class="relative aspect-square rounded-3xl p-4 flex flex-col items-center justify-center transition-all duration-300 bg-gradient-to-br ${q.color} border-4 ${borderClass} ${btnClasses} shadow-xl">
+                            <div class="absolute top-2 right-2 text-white/50 font-black text-xl">${q.id}</div>
+                            ${iconHTML}
+                            <span class="mt-3 font-bold text-white text-xs md:text-sm text-center bg-black/30 px-3 py-1.5 rounded-full w-full truncate border border-white/10">${q.title}</span>
+                        </button>
+                    `;
+                });
+
+                return `
+                    <div class="min-h-screen jungle-bg p-4 md:p-8 font-sans">
+                        <div class="max-w-4xl mx-auto">
+                            <div class="flex flex-col md:flex-row justify-between items-center mb-10 bg-emerald-800/50 p-6 rounded-3xl backdrop-blur-md border border-emerald-500/30 shadow-lg relative">
+                                <button onclick="openMenu()" class="absolute -top-4 -left-4 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white w-10 h-10 rounded-full shadow-lg border-2 border-white transition transform hover:scale-110" title="Keluar Game">
+                                    <i data-lucide="x" class="w-5 h-5"></i>
+                                </button>
+                                <div class="flex items-center space-x-4 mb-4 md:mb-0 ml-4">
+                                    <div class="bg-yellow-500 p-3 rounded-2xl shadow-lg shadow-yellow-500/50 border-2 border-yellow-300">
+                                        <i data-lucide="compass" class="w-8 h-8 text-emerald-900"></i>
+                                    </div>
+                                    <div>
+                                        <h1 class="text-2xl md:text-3xl font-extrabold tracking-wide text-white drop-shadow-md">Peta Hutan</h1>
+                                        <p class="text-emerald-200 text-sm font-medium">Kumpulkan 10 Permata Pengetahuan!</p>
+                                    </div>
+                                </div>
+                                <div class="text-center">
+                                    <p class="text-emerald-200 text-xs font-bold uppercase tracking-wider mb-1">Skor Permata</p>
+                                    <div class="flex items-center space-x-2 bg-yellow-500/20 px-4 py-2 rounded-xl border border-yellow-500/30">
+                                        <i data-lucide="gem" class="w-6 h-6 text-yellow-400 fill-current animate-pulse"></i>
+                                        <span class="text-2xl font-black text-yellow-400">${jungleState.score}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 md:gap-6">${gridHTML}</div>
+                        </div>
+                    </div>
+                `;
+            } else if (jungleState.view === 'question') {
+                const q = jungleQuestions.find(question => question.id === jungleState.activeQuestionId);
+                let optionsHTML = '';
+                q.options.forEach((opt, idx) => {
+                    optionsHTML += `<button onclick="jungle_handleAnswer(${idx})" ${jungleState.feedback.show ? 'disabled' : ''} class="w-full p-5 rounded-2xl border-2 border-emerald-500 bg-emerald-800 hover:bg-emerald-700 text-left text-lg font-bold text-white transition-all duration-200 transform hover:-translate-y-1 hover:shadow-lg hover:shadow-emerald-500/30 active:scale-95 flex items-center"><span class="mr-4 bg-emerald-900 text-emerald-300 w-8 h-8 flex items-center justify-center rounded-full shadow-inner">${String.fromCharCode(65 + idx)}</span>${opt}</button>`;
+                });
+
+                let feedbackHTML = '';
+                if (jungleState.feedback.show) {
+                    const isCorrect = jungleState.feedback.isCorrect;
+                    feedbackHTML = `
+                        <div class="absolute inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md transition-all duration-500 ${isCorrect ? 'bg-green-900/90' : 'bg-orange-900/90'}">
+                            <div class="transform transition-all duration-500 scale-110 text-center p-8 rounded-3xl border-4 shadow-2xl ${isCorrect ? 'bg-green-800 border-green-400 shadow-green-500/50' : 'bg-orange-800 border-orange-400 shadow-orange-500/50'}">
+                                ${isCorrect ? `<i data-lucide="check-circle" class="w-24 h-24 text-green-300 mx-auto mb-6 animate-bounce"></i>` : `<i data-lucide="heart" class="w-24 h-24 text-orange-300 mx-auto mb-6 animate-pulse fill-current"></i>`}
+                                <h2 class="text-3xl md:text-5xl font-black text-white tracking-wide mb-2 drop-shadow-lg">${isCorrect ? "BARAKALLAH!" : "SEMANGAT!"}</h2>
+                                <p class="text-xl md:text-2xl font-bold text-white/90">${isCorrect ? "Siswa Kelas 2 Juara!" : "Siswa Para Juara!"}</p>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                return `
+                    <div class="min-h-screen jungle-bg flex items-center justify-center p-4 relative overflow-hidden">
+                        ${feedbackHTML}
+                        <div class="max-w-2xl w-full bg-emerald-900/90 rounded-3xl p-6 md:p-10 border-4 border-emerald-600 shadow-[0_0_30px_rgba(4,120,87,0.5)] relative backdrop-blur-sm">
+                            <button onclick="jungle_goHome()" class="flex items-center text-emerald-300 hover:text-white mb-8 transition-colors font-bold"><i data-lucide="arrow-left" class="w-5 h-5 mr-2"></i> Kembali ke Peta</button>
+                            <div class="mb-10">
+                                <span class="inline-block px-5 py-1.5 rounded-full text-sm font-black mb-4 bg-gradient-to-r ${q.color} text-white shadow-md border border-emerald-400/50">📍 ${q.title}</span>
+                                <h2 class="text-2xl md:text-3xl font-bold text-white leading-relaxed drop-shadow-sm">${q.question}</h2>
+                            </div>
+                            <div class="space-y-4">${optionsHTML}</div>
+                        </div>
+                    </div>
+                `;
+            } else if (jungleState.view === 'result') {
+                return renderCertificate('Petualangan Hutan', jungleState.score, 'gem', 'text-amber-500', 'bg-yellow-500 hover:bg-yellow-400 text-emerald-900 border-2 border-yellow-200', 'openJungleApp()');
+            }
+        }
+
+        // --- KOMPONEN BERSAMA: SERTIFIKAT AKHIR ---
+        function renderCertificate(gameName, finalScore, iconName, iconColor, btnClass, restartFunc) {
+            let confettiHTML = '';
+            const colors = ['#ef4444','#eab308','#22c55e','#3b82f6','#a855f7'];
+            for (let i = 0; i < 70; i++) {
+                const left = Math.random() * 100;
+                const animDuration = Math.random() * 3 + 2;
+                const animDelay = Math.random() * 1.5;
+                const bgColor = colors[Math.floor(Math.random() * colors.length)];
+                confettiHTML += `<div class="confetti-piece rounded-sm" style="left: ${left}vw; animation-duration: ${animDuration}s; animation-delay: ${animDelay}s; background-color: ${bgColor};"></div>`;
+            }
+
+            // Pilih background berdasarkan nama game
+            const bgContainerClass = gameName === 'Petualangan Hutan' ? 'jungle-bg' : 'space-bg';
+
+            return `
+                <div class="min-h-screen ${bgContainerClass} flex flex-col items-center justify-center p-4 relative overflow-hidden">
+                    ${confettiHTML}
+                    <div class="max-w-2xl w-full bg-amber-50 rounded-lg p-2 shadow-[0_0_50px_rgba(251,191,36,0.5)] relative z-20 animate-pop">
+                        <div class="border-8 border-double border-amber-600 rounded p-6 md:p-12 text-center relative overflow-hidden" style="background-image: url('https://www.transparenttextures.com/patterns/cream-paper.png');">
+                            
+                            <div class="flex justify-center mb-6">
+                                <div class="bg-amber-100 p-4 rounded-full border-4 border-amber-500 shadow-xl relative">
+                                    <i data-lucide="medal" class="w-16 h-16 text-amber-500"></i>
+                                    <div class="absolute -bottom-4 -right-4 bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md border-2 border-white transform rotate-12">LULUS!</div>
+                                </div>
+                            </div>
+
+                            <h1 class="text-3xl md:text-5xl font-serif font-black text-amber-900 mb-2 uppercase tracking-widest border-b-2 border-amber-300 pb-4">
+                                Sertifikat Penghargaan
+                            </h1>
+                            
+                            <p class="text-amber-700 italic mt-6 mb-2 text-lg">Diberikan dengan bangga kepada:</p>
+                            <h2 class="text-4xl font-black text-amber-600 mb-6 drop-shadow-sm">Siswa Kelas 2</h2>
+                            
+                            <div class="bg-amber-100/50 py-4 px-6 rounded-2xl border border-amber-200 inline-block mb-8">
+                                <p class="text-sm font-bold text-amber-700 uppercase tracking-widest mb-1">Predikat Kehormatan</p>
+                                <p class="text-2xl md:text-3xl font-bold text-amber-900">"Generasi Anshorullah Hebat"</p>
+                            </div>
+
+                            <div class="flex justify-center items-center space-x-6">
+                                <div class="text-center">
+                                    <p class="text-sm font-bold text-amber-700 uppercase">Total Poin (${gameName})</p>
+                                    <p class="text-4xl font-black text-amber-500 flex items-center justify-center">
+                                        <i data-lucide="${iconName}" class="w-8 h-8 mr-2 fill-current"></i> ${finalScore}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex space-x-4 mt-10 relative z-30">
+                        <button onclick="${restartFunc}" class="px-8 py-4 ${btnClass} font-bold text-lg md:text-xl rounded-full shadow-lg transform transition hover:scale-105 active:scale-95 flex items-center">
+                            <i data-lucide="rotate-ccw" class="w-6 h-6 mr-2"></i> Mainkan Lagi
+                        </button>
+                        <button onclick="openMenu()" class="px-8 py-4 bg-white text-gray-900 font-bold text-lg md:text-xl rounded-full shadow-lg transform transition hover:scale-105 active:scale-95 flex items-center border-2 border-gray-200">
+                            <i data-lucide="home" class="w-6 h-6 mr-2"></i> Menu Utama
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- RENDER ROUTER ---
+        function render() {
+            const appDiv = document.getElementById('app');
+            
+            if (appState === 'menu') {
+                appDiv.innerHTML = renderMainMenu();
+            } else if (appState === 'space') {
+                appDiv.innerHTML = renderSpaceApp();
+            } else if (appState === 'jungle') {
+                appDiv.innerHTML = renderJungleApp();
+            }
+
+            // Render ulang ikon-ikon Lucide setiap kali ganti halaman
+            lucide.createIcons();
+        }
+
+        // Jalankan aplikasi pertama kali
+        render();
+
+    </script>
+</body>
+</html>
